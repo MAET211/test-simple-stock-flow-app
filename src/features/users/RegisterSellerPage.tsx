@@ -36,6 +36,7 @@ export const RegisterSellerPage: React.FC = () => {
       await userService.registerSeller({
         username: username.trim().toLowerCase(),
         password,
+        role: 'seller',
       });
 
       setSuccessMessage(`¡Vendedor "${username.trim().toLowerCase()}" registrado exitosamente! Ya puede iniciar sesión.`);
