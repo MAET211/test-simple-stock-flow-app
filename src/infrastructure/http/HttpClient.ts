@@ -21,6 +21,7 @@ export interface RequestOptions {
 }
 
 export interface HttpClient {
+  setToken(token: string | null): void;
   get<T>(url: string, options?: RequestOptions): Promise<T>;
   post<T>(url: string, data?: unknown, options?: RequestOptions): Promise<T>;
   put<T>(url: string, data?: unknown, options?: RequestOptions): Promise<T>;

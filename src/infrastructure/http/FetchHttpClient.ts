@@ -2,8 +2,17 @@ import { HttpClient, RequestOptions, ApiException } from './HttpClient';
 import { ApiErrorDetail } from './dto/api.dto';
 
 export class FetchHttpClient implements HttpClient {
+  private token: string | null = null;
   private tokenProvider: () => string | null = () => null;
   private unauthorizedHandler: () => void = () => {};
+
+  public constructor() {
+    this.token = this.getStoredToken();
+  }
+
+  public setToken(token: string | null): void {
+    this.token = token;
+  }
 
   public setTokenProvider(provider: () => string | null): void {
     this.tokenProvider = provider;
@@ -11,6 +20,24 @@ export class FetchHttpClient implements HttpClient {
 
   public setUnauthorizedHandler(handler: () => void): void {
     this.unauthorizedHandler = handler;
+  }
+
+  private getStoredToken(): string | null {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const directToken = window.localStorage.getItem('stockflow_access_token');
+        if (directToken) return directToken;
+
+        const stored = window.localStorage.getItem('stockflow_auth_session');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          return parsed.accessToken || null;
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return null;
   }
 
   private buildUrl(url: string, params?: Record<string, string | number | boolean | undefined>): string {
@@ -34,7 +61,7 @@ export class FetchHttpClient implements HttpClient {
       headers.set('Accept', 'application/json');
     }
 
-    const token = this.tokenProvider();
+    const token = this.token ?? this.tokenProvider() ?? this.getStoredToken();
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
     }
@@ -53,9 +80,13 @@ export class FetchHttpClient implements HttpClient {
     return headers;
   }
 
-  private async handleResponse<T>(response: Response): Promise<T> {
+  private async handleResponse<T>(response: Response, url?: string): Promise<T> {
     if (response.status === 401) {
-      this.unauthorizedHandler();
+      const isLoginRequest = url ? url.includes('/api/auth/login') : false;
+      if (!isLoginRequest) {
+        this.token = null;
+        this.unauthorizedHandler();
+      }
       throw new ApiException(401, undefined, 'No autorizado. La sesión ha expirado o el token es inválido.');
     }
 
@@ -102,7 +133,7 @@ export class FetchHttpClient implements HttpClient {
       method: 'GET',
       headers,
     });
-    return this.handleResponse<T>(response);
+    return this.handleResponse<T>(response, fullUrl);
   }
 
   public async post<T>(url: string, data?: unknown, options?: RequestOptions): Promise<T> {
@@ -113,7 +144,7 @@ export class FetchHttpClient implements HttpClient {
       headers,
       body: data !== undefined ? JSON.stringify(data) : undefined,
     });
-    return this.handleResponse<T>(response);
+    return this.handleResponse<T>(response, fullUrl);
   }
 
   public async put<T>(url: string, data?: unknown, options?: RequestOptions): Promise<T> {
@@ -124,7 +155,7 @@ export class FetchHttpClient implements HttpClient {
       headers,
       body: data !== undefined ? JSON.stringify(data) : undefined,
     });
-    return this.handleResponse<T>(response);
+    return this.handleResponse<T>(response, fullUrl);
   }
 
   public async delete<T>(url: string, options?: RequestOptions): Promise<T> {
@@ -134,7 +165,7 @@ export class FetchHttpClient implements HttpClient {
       method: 'DELETE',
       headers,
     });
-    return this.handleResponse<T>(response);
+    return this.handleResponse<T>(response, fullUrl);
   }
 
   public async upload<T>(url: string, file: File, options?: RequestOptions): Promise<T> {
@@ -151,7 +182,7 @@ export class FetchHttpClient implements HttpClient {
       headers,
       body: formData,
     });
-    return this.handleResponse<T>(response);
+    return this.handleResponse<T>(response, fullUrl);
   }
 }
 

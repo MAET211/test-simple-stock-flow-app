@@ -98,5 +98,5 @@ export interface CreateSaleRequestDto {
 export interface RegisterSellerRequestDto {
   username: string;
   password: string;
-  role?: string;
+  role: 'seller';
 }

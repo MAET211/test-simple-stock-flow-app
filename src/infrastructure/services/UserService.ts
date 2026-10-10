@@ -7,7 +7,7 @@ export class UserService implements UserPort {
     await httpClient.post<void>('/api/auth/register', {
       username: data.username,
       password: data.password,
-      role: data.role ?? 'seller',
+      role: 'seller',
     });
   }
 }

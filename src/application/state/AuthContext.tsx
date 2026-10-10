@@ -17,6 +17,7 @@ interface AuthContextValue {
 }
 
 const STORAGE_KEY = 'stockflow_auth_session';
+const TOKEN_STORAGE_KEY = 'stockflow_access_token';
 
 const getStoredSession = (): AuthSession | null => {
   try {
@@ -40,6 +41,7 @@ const removeStoredSession = () => {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
       window.localStorage.removeItem(STORAGE_KEY);
+      window.localStorage.removeItem(TOKEN_STORAGE_KEY);
     }
   } catch {
     // ignore
@@ -49,6 +51,7 @@ const removeStoredSession = () => {
 const saveStoredSession = (session: AuthSession) => {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(TOKEN_STORAGE_KEY, session.accessToken);
       window.localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
@@ -67,16 +70,26 @@ const saveStoredSession = (session: AuthSession) => {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [session, setSession] = useState<AuthSession | null>(() => getStoredSession());
+  const [session, setSession] = useState<AuthSession | null>(() => {
+    const stored = getStoredSession();
+    if (stored?.accessToken) {
+      httpClient.setToken(stored.accessToken);
+    }
+    return stored;
+  });
 
   const [isLoading, setIsLoading] = useState(false);
 
   const logout = useCallback(() => {
+    httpClient.setToken(null);
     removeStoredSession();
     setSession(null);
   }, []);
 
   useEffect(() => {
+    if (session?.accessToken) {
+      httpClient.setToken(session.accessToken);
+    }
     httpClient.setTokenProvider(() => session?.accessToken || null);
     httpClient.setUnauthorizedHandler(logout);
   }, [session, logout]);
@@ -85,6 +98,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const newSession = await authService.login(credentials);
+      // Synchronously inject token into httpClient and localStorage before state propagation or navigation
+      httpClient.setToken(newSession.accessToken);
       saveStoredSession(newSession);
       setSession(newSession);
     } finally {
